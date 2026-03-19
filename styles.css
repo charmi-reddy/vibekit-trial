@@ -162,6 +162,10 @@ body {
   font-size: 0.9rem;
 }
 
+.pera-wallet-modal {
+  z-index: 9999;
+}
+
 @media (max-width: 580px) {
   .card {
     padding: 22px;

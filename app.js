@@ -1,5 +1,3 @@
-import { PeraWalletConnect } from 'https://cdn.jsdelivr.net/npm/@perawallet/connect@1.5.1/dist/index.js'
-
 const connectBtn = document.getElementById('connectBtn')
 const disconnectBtn = document.getElementById('disconnectBtn')
 const statusText = document.getElementById('statusText')
@@ -7,11 +5,11 @@ const walletAddress = document.getElementById('walletAddress')
 const walletPanel = document.getElementById('walletPanel')
 const helperText = document.getElementById('helperText')
 
-const peraWallet = new PeraWalletConnect({
-  chainId: 416002,
-  compactMode: true,
-})
 const isFileProtocol = window.location.protocol === 'file:'
+let peraWallet = null
+let sdkReady = false
+
+connectBtn.disabled = true
 
 const shortAddress = (address) => `${address.slice(0, 10)}...${address.slice(-8)}`
 
@@ -42,6 +40,42 @@ const showHowToScan = () => {
     'Open Pera Wallet on your phone → tap the QR scanner icon (top right) → scan the QR shown on desktop → approve connection.'
 }
 
+const loadPeraWalletSdk = async () => {
+  const urls = [
+    'https://esm.sh/@perawallet/connect@1.5.1?bundle',
+    'https://esm.sh/@perawallet/connect@1.5.1',
+  ]
+
+  let lastError = null
+  for (const url of urls) {
+    try {
+      const mod = await import(url)
+      const Constructor = mod?.PeraWalletConnect || mod?.default?.PeraWalletConnect || mod?.default
+      if (typeof Constructor === 'function') {
+        return Constructor
+      }
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  throw lastError || new Error('Failed to load @perawallet/connect from CDN')
+}
+
+const ensureWalletReady = async () => {
+  if (sdkReady && peraWallet) return
+
+  setStatus('Loading wallet SDK...')
+  helperText.textContent = 'Preparing secure WalletConnect session...'
+
+  const PeraWalletConnect = await loadPeraWalletSdk()
+  peraWallet = new PeraWalletConnect({
+    chainId: 416002,
+    compactMode: true,
+  })
+  sdkReady = true
+}
+
 const connectWallet = async () => {
   if (isFileProtocol) {
     setStatus('Open app with http://localhost (not file://)', 'error')
@@ -49,14 +83,16 @@ const connectWallet = async () => {
     return
   }
 
+  if (!sdkReady || !peraWallet) {
+    setStatus('Wallet SDK still loading...', 'error')
+    helperText.textContent = 'Please wait 1-2 seconds and click Connect again.'
+    return
+  }
+
   connectBtn.disabled = true
   setStatus('Waiting for wallet approval...')
   showHowToScan()
   try {
-    if (!peraWallet.isConnected && peraWallet.connector) {
-      await peraWallet.disconnect()
-    }
-
     const accounts = await peraWallet.connect()
     if (!accounts || accounts.length === 0) {
       setStatus('No account selected', 'error')
@@ -75,6 +111,11 @@ const connectWallet = async () => {
 }
 
 const disconnectWallet = async () => {
+  if (!peraWallet) {
+    setDisconnectedUI()
+    return
+  }
+
   try {
     await peraWallet.disconnect()
   } catch {
@@ -91,16 +132,25 @@ const init = async () => {
   }
 
   try {
+    await ensureWalletReady()
+    connectBtn.disabled = false
+
     const sessions = await peraWallet.reconnectSession()
     if (sessions && sessions.length > 0) {
       peraWallet.connector?.on('disconnect', setDisconnectedUI)
       setConnectedUI(sessions[0])
       return
     }
+    setStatus('Ready to connect')
+    helperText.textContent = 'Click Connect with QR. If modal does not appear, refresh once and try again.'
   } catch {
-    setStatus('Session check failed', 'error')
+    setStatus('Wallet SDK failed to load', 'error')
+    helperText.textContent =
+      'Brave may block external scripts. Turn Shields off for localhost and allow JavaScript, then refresh.'
   }
-  setDisconnectedUI()
+
+  if (!walletPanel.hidden) return
+  disconnectBtn.hidden = true
 }
 
 connectBtn.addEventListener('click', connectWallet)

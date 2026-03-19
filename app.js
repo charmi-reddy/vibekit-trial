@@ -1,3 +1,5 @@
+import { PeraWalletConnect } from '@perawallet/connect'
+
 const connectBtn = document.getElementById('connectBtn')
 const disconnectBtn = document.getElementById('disconnectBtn')
 const statusText = document.getElementById('statusText')
@@ -40,35 +42,12 @@ const showHowToScan = () => {
     'Open Pera Wallet on your phone → tap the QR scanner icon (top right) → scan the QR shown on desktop → approve connection.'
 }
 
-const loadPeraWalletSdk = async () => {
-  const urls = [
-    'https://esm.sh/@perawallet/connect@1.5.1?bundle',
-    'https://esm.sh/@perawallet/connect@1.5.1',
-  ]
-
-  let lastError = null
-  for (const url of urls) {
-    try {
-      const mod = await import(url)
-      const Constructor = mod?.PeraWalletConnect || mod?.default?.PeraWalletConnect || mod?.default
-      if (typeof Constructor === 'function') {
-        return Constructor
-      }
-    } catch (error) {
-      lastError = error
-    }
-  }
-
-  throw lastError || new Error('Failed to load @perawallet/connect from CDN')
-}
-
 const ensureWalletReady = async () => {
   if (sdkReady && peraWallet) return
 
   setStatus('Loading wallet SDK...')
   helperText.textContent = 'Preparing secure WalletConnect session...'
 
-  const PeraWalletConnect = await loadPeraWalletSdk()
   peraWallet = new PeraWalletConnect({
     chainId: 416002,
     compactMode: true,
@@ -146,7 +125,7 @@ const init = async () => {
   } catch {
     setStatus('Wallet SDK failed to load', 'error')
     helperText.textContent =
-      'Brave may block external scripts. Turn Shields off for localhost and allow JavaScript, then refresh.'
+      'Please run via npm dev server so dependencies are bundled locally. Use: npm install, then npm run dev.'
   }
 
   if (!walletPanel.hidden) return

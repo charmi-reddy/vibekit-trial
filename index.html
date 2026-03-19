@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Algorand Wallet Connect</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-bg"></div>
+    <main class="container">
+      <section class="card" aria-labelledby="title">
+        <header class="card-header">
+          <div class="brand-pill">Algorand dApp</div>
+          <h1 id="title">Connect your wallet</h1>
+          <p class="subtitle">
+            Scan a QR code with Pera Wallet on mobile to securely connect from desktop.
+          </p>
+        </header>
+
+        <div class="status-panel" id="statusPanel">
+          <p class="status-label">Status</p>
+          <p class="status-text" id="statusText">Not connected</p>
+        </div>
+
+        <div class="wallet-panel" id="walletPanel" hidden>
+          <p class="wallet-label">Connected address</p>
+          <p class="wallet-address" id="walletAddress">-</p>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="connectBtn" type="button">
+            Connect with QR
+          </button>
+          <button class="btn btn-secondary" id="disconnectBtn" type="button" hidden>
+            Disconnect
+          </button>
+        </div>
+
+        <p class="helper" id="helperText">
+          Clicking connect opens the WalletConnect QR modal. Approve in your mobile wallet.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

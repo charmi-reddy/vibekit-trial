@@ -1,19 +1,45 @@
 import { PeraWalletConnect } from '@perawallet/connect'
+import { DeflyWalletConnect } from '@blockshake/defly-connect'
 
-const connectBtn = document.getElementById('connectBtn')
+const peraBtn = document.getElementById('peraBtn')
+const deflyBtn = document.getElementById('deflyBtn')
+const phantomBtn = document.getElementById('phantomBtn')
 const disconnectBtn = document.getElementById('disconnectBtn')
 const statusText = document.getElementById('statusText')
 const walletAddress = document.getElementById('walletAddress')
 const walletPanel = document.getElementById('walletPanel')
 const helperText = document.getElementById('helperText')
+const debugLog = document.getElementById('debugLog')
+const clearDebugBtn = document.getElementById('clearDebugBtn')
 
 const isFileProtocol = window.location.protocol === 'file:'
-let peraWallet = null
-let sdkReady = false
+const peraWallet = new PeraWalletConnect({ chainId: 416002, compactMode: true })
+const deflyWallet = new DeflyWalletConnect({ chainId: 416002 })
+
+let activeWalletType = null
+const logLines = []
+
+const writeDebug = (message, details = null) => {
+  const now = new Date().toLocaleTimeString()
+  const line = details ? `[${now}] ${message}: ${details}` : `[${now}] ${message}`
+  logLines.push(line)
+  if (logLines.length > 120) logLines.shift()
+  debugLog.textContent = logLines.join('\n')
+  debugLog.scrollTop = debugLog.scrollHeight
+}
 
 connectBtn.disabled = true
 
-const shortAddress = (address) => `${address.slice(0, 10)}...${address.slice(-8)}`
+const shortAddress = (address) => {
+  if (!address || address.length < 18) return address
+  return `${address.slice(0, 10)}...${address.slice(-8)}`
+}
+
+const setAllConnectButtons = (disabled) => {
+  peraBtn.disabled = disabled
+  deflyBtn.disabled = disabled
+  phantomBtn.disabled = disabled
+}
 
 const setStatus = (message, type = 'default') => {
   statusText.textContent = message
@@ -22,117 +48,175 @@ const setStatus = (message, type = 'default') => {
   if (type === 'error') statusText.classList.add('error')
 }
 
-const setConnectedUI = (address) => {
-  walletAddress.textContent = `${shortAddress(address)}\n${address}`
+const setConnectedUI = (address, walletLabel) => {
+  walletAddress.textContent = `${walletLabel}\n${shortAddress(address)}\n${address}`
   walletPanel.hidden = false
   disconnectBtn.hidden = false
-  setStatus('Connected', 'connected')
-  helperText.textContent = 'Wallet session active. You can now sign transactions from this dApp.'
+  setStatus(`Connected: ${walletLabel}`, 'connected')
+  helperText.textContent = `${walletLabel} session active.`
 }
 
 const setDisconnectedUI = () => {
   walletPanel.hidden = true
   disconnectBtn.hidden = true
   setStatus('Not connected')
-  helperText.textContent = 'Clicking connect opens the WalletConnect QR modal. Approve in your mobile wallet.'
+  helperText.textContent = 'Click Pera/Defly to open QR modal, then scan with your mobile wallet.'
+  activeWalletType = null
 }
 
-const showHowToScan = () => {
+const showHowToScan = (walletLabel) => {
   helperText.textContent =
-    'Open Pera Wallet on your phone → tap the QR scanner icon (top right) → scan the QR shown on desktop → approve connection.'
+    `Open ${walletLabel} on your phone → tap the QR scanner → scan desktop QR → approve connection.`
 }
 
-const ensureWalletReady = async () => {
-  if (sdkReady && peraWallet) return
+const connectAlgorandWallet = async ({ walletType, walletLabel, walletClient }) => {
+  writeDebug('Connect clicked', walletLabel)
 
-  setStatus('Loading wallet SDK...')
-  helperText.textContent = 'Preparing secure WalletConnect session...'
-
-  peraWallet = new PeraWalletConnect({
-    chainId: 416002,
-    compactMode: true,
-  })
-  sdkReady = true
-}
-
-const connectWallet = async () => {
   if (isFileProtocol) {
     setStatus('Open app with http://localhost (not file://)', 'error')
-    helperText.textContent = 'Run a local server: npx serve . then open the shown localhost URL and click Connect again.'
+    helperText.textContent = 'Run local dev server: npm run dev, then open localhost URL and click Connect again.'
+    writeDebug('Blocked', 'file:// protocol detected')
     return
   }
 
-  if (!sdkReady || !peraWallet) {
-    setStatus('Wallet SDK still loading...', 'error')
-    helperText.textContent = 'Please wait 1-2 seconds and click Connect again.'
-    return
-  }
+  setAllConnectButtons(true)
+  setStatus(`Opening ${walletLabel} QR...`)
+  showHowToScan(walletLabel)
+  writeDebug('Opening QR modal', walletLabel)
 
-  connectBtn.disabled = true
-  setStatus('Waiting for wallet approval...')
-  showHowToScan()
   try {
-    const accounts = await peraWallet.connect()
+    const accounts = await walletClient.connect()
     if (!accounts || accounts.length === 0) {
       setStatus('No account selected', 'error')
+      writeDebug('Connect result', 'No accounts returned')
       return
     }
-    peraWallet.connector?.on('disconnect', setDisconnectedUI)
-    setConnectedUI(accounts[0])
+    walletClient.connector?.on('disconnect', setDisconnectedUI)
+    activeWalletType = walletType
+    writeDebug('Connected', accounts[0])
+    setConnectedUI(accounts[0], walletLabel)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Connection cancelled or failed'
     setStatus(message, 'error')
     helperText.textContent =
-      'If no QR appears, disable popup/ad blockers for this site and retry from localhost. Then scan using Pera QR scanner.'
+      `If no QR appears for ${walletLabel}, keep this tab focused and retry. Also allow popups/cookies for localhost.`
+    writeDebug('Connect error', message)
   } finally {
-    connectBtn.disabled = false
+    setAllConnectButtons(false)
   }
 }
 
-const disconnectWallet = async () => {
-  if (!peraWallet) {
-    setDisconnectedUI()
+const connectPhantom = async () => {
+  writeDebug('Connect clicked', 'Phantom')
+  const phantomProvider = window?.phantom?.solana
+
+  if (!phantomProvider?.isPhantom) {
+    setStatus('Phantom extension not detected', 'error')
+    helperText.textContent =
+      'Phantom row is extension-based (not Algorand QR). Install Phantom browser extension if you want to use it.'
+    writeDebug('Phantom unavailable', 'No extension provider found')
     return
   }
 
   try {
-    await peraWallet.disconnect()
+    setAllConnectButtons(true)
+    setStatus('Connecting Phantom extension...')
+    const response = await phantomProvider.connect()
+    const address = response?.publicKey?.toString?.() || 'Connected'
+    activeWalletType = 'phantom'
+    setConnectedUI(address, 'Phantom')
+    writeDebug('Connected', address)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Phantom connection failed'
+    setStatus(message, 'error')
+    writeDebug('Connect error', message)
+  } finally {
+    setAllConnectButtons(false)
+  }
+}
+
+const disconnectWallet = async () => {
+  writeDebug('Disconnect clicked')
+
+  try {
+    if (activeWalletType === 'pera') {
+      await peraWallet.disconnect()
+    } else if (activeWalletType === 'defly') {
+      await deflyWallet.disconnect()
+    } else if (activeWalletType === 'phantom') {
+      const phantomProvider = window?.phantom?.solana
+      if (phantomProvider?.disconnect) {
+        await phantomProvider.disconnect()
+      }
+    }
+    writeDebug('Disconnected', 'Session cleared')
   } catch {
     setStatus('Disconnected locally', 'error')
+    writeDebug('Disconnect warning', 'Could not clear remote session')
   }
   setDisconnectedUI()
 }
 
 const init = async () => {
+  writeDebug('App init')
+
   if (isFileProtocol) {
-    setStatus('Local file mode detected', 'error')
-    helperText.textContent = 'WalletConnect QR may fail on file://. Start a local server: npx serve . and open localhost URL.'
+    setStatus('Open app via localhost', 'error')
+    helperText.textContent = 'Wallet QR requires localhost. Run npm run dev and open the shown URL.'
+    writeDebug('Init blocked', 'file:// protocol detected')
     return
   }
 
-  try {
-    await ensureWalletReady()
-    connectBtn.disabled = false
+  setStatus('Ready to connect')
+  helperText.textContent = 'Select a wallet row. Pera/Defly open QR. Phantom uses extension.'
 
-    const sessions = await peraWallet.reconnectSession()
-    if (sessions && sessions.length > 0) {
+  try {
+    const peraSessions = await peraWallet.reconnectSession()
+    writeDebug('Pera reconnect checked', `${peraSessions?.length ?? 0} account(s) found`)
+    if (peraSessions && peraSessions.length > 0) {
+      activeWalletType = 'pera'
       peraWallet.connector?.on('disconnect', setDisconnectedUI)
-      setConnectedUI(sessions[0])
+      setConnectedUI(peraSessions[0], 'Pera Wallet')
+      writeDebug('Session restored', peraSessions[0])
       return
     }
-    setStatus('Ready to connect')
-    helperText.textContent = 'Click Connect with QR. If modal does not appear, refresh once and try again.'
-  } catch {
-    setStatus('Wallet SDK failed to load', 'error')
-    helperText.textContent =
-      'Please run via npm dev server so dependencies are bundled locally. Use: npm install, then npm run dev.'
-  }
 
-  if (!walletPanel.hidden) return
-  disconnectBtn.hidden = true
+    const deflySessions = await deflyWallet.reconnectSession()
+    writeDebug('Defly reconnect checked', `${deflySessions?.length ?? 0} account(s) found`)
+    if (deflySessions && deflySessions.length > 0) {
+      activeWalletType = 'defly'
+      deflyWallet.connector?.on('disconnect', setDisconnectedUI)
+      setConnectedUI(deflySessions[0], 'Defly Wallet')
+      writeDebug('Session restored', deflySessions[0])
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Wallet initialization failed'
+    setStatus(message, 'error')
+    writeDebug('Init error', message)
+  }
 }
 
-connectBtn.addEventListener('click', connectWallet)
+peraBtn.addEventListener('click', () =>
+  connectAlgorandWallet({
+    walletType: 'pera',
+    walletLabel: 'Pera Wallet',
+    walletClient: peraWallet,
+  }),
+)
+
+deflyBtn.addEventListener('click', () =>
+  connectAlgorandWallet({
+    walletType: 'defly',
+    walletLabel: 'Defly Wallet',
+    walletClient: deflyWallet,
+  }),
+)
+
+phantomBtn.addEventListener('click', connectPhantom)
 disconnectBtn.addEventListener('click', disconnectWallet)
+clearDebugBtn.addEventListener('click', () => {
+  logLines.length = 0
+  debugLog.textContent = 'No logs yet.'
+})
 
 init()

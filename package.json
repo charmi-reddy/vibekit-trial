@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blockshake/defly-connect": "^1.2.1",
     "@perawallet/connect": "^1.5.1"
   },
   "devDependencies": {

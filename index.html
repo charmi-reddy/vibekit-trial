@@ -19,9 +19,7 @@
         <header class="card-header">
           <div class="brand-pill">Algorand dApp</div>
           <h1 id="title">Connect your wallet</h1>
-          <p class="subtitle">
-            Scan a QR code with Pera Wallet on mobile to securely connect from desktop.
-          </p>
+          <p class="subtitle">Choose a wallet below. Click a row button to connect.</p>
         </header>
 
         <div class="status-panel" id="statusPanel">
@@ -34,17 +32,38 @@
           <p class="wallet-address" id="walletAddress">-</p>
         </div>
 
+        <div class="wallet-list" role="list" aria-label="Wallet options">
+          <div class="wallet-row" role="listitem">
+            <div>
+              <p class="wallet-name">Pera Wallet</p>
+              <p class="wallet-note">Algorand WalletConnect QR</p>
+            </div>
+            <button class="btn btn-primary" id="peraBtn" type="button">Connect</button>
+          </div>
+
+          <div class="wallet-row" role="listitem">
+            <div>
+              <p class="wallet-name">Defly Wallet</p>
+              <p class="wallet-note">Algorand WalletConnect QR</p>
+            </div>
+            <button class="btn btn-primary" id="deflyBtn" type="button">Connect</button>
+          </div>
+
+          <div class="wallet-row" role="listitem">
+            <div>
+              <p class="wallet-name">Phantom Wallet</p>
+              <p class="wallet-note">Browser extension connect (no Algorand QR)</p>
+            </div>
+            <button class="btn btn-primary" id="phantomBtn" type="button">Connect</button>
+          </div>
+        </div>
+
         <div class="actions">
-          <button class="btn btn-primary" id="connectBtn" type="button">
-            Connect with QR
-          </button>
-          <button class="btn btn-secondary" id="disconnectBtn" type="button" hidden>
-            Disconnect
-          </button>
+          <button class="btn btn-secondary" id="disconnectBtn" type="button" hidden>Disconnect</button>
         </div>
 
         <p class="helper" id="helperText">
-          Clicking connect opens the WalletConnect QR modal. Approve in your mobile wallet.
+          Click Pera/Defly to open QR modal. Then scan with that wallet app on mobile.
         </p>
 
         <section class="debug-panel" aria-labelledby="debugTitle">
